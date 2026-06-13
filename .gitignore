@@ -1,0 +1,30 @@
+# Local editor and workspace state
+.idea/
+.obsidian/
+.vscode/
+
+# Python environments and caches
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node/package caches, in case frontend tooling is added later
+node_modules/
+dist/
+build/
+
+# Local environment and generated run artifacts
+.env
+.env.*
+*.traj.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# references/ is intentionally not ignored: entries under it are tracked as git submodules.

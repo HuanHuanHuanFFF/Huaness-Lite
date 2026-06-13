@@ -1,0 +1,18 @@
+[submodule "references/claude-code"]
+	path = references/claude-code
+	url = https://github.com/anthropics/claude-code
+[submodule "references/codex"]
+	path = references/codex
+	url = https://github.com/openai/codex
+[submodule "references/gemini-cli"]
+	path = references/gemini-cli
+	url = https://github.com/google-gemini/gemini-cli
+[submodule "references/mini-swe-agent"]
+	path = references/mini-swe-agent
+	url = https://github.com/SWE-agent/mini-swe-agent
+[submodule "references/openclaw"]
+	path = references/openclaw
+	url = https://github.com/openclaw/openclaw
+[submodule "references/openhands"]
+	path = references/openhands
+	url = https://github.com/OpenHands/OpenHands
