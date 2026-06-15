@@ -4,7 +4,8 @@
 
 This repository is currently a lightweight agent-runtime study and design workspace.
 
-- `docs/` contains architecture notes, reference analysis, and learning summaries.
+- `docs/` is reserved for future finalized project documents.
+- `docs/dev/` contains the current development notes, design drafts, reference analysis, learning summaries, prompts, and other process-oriented materials that are not final formal docs.
 - `references/` contains Git submodules for external agent projects. Treat these as read-only references unless explicitly updating the submodule pointer.
 - `README.md` and `LICENSE` come from the main repository root.
 
@@ -26,7 +27,7 @@ Use `git submodule update --init --recursive` after cloning so `references/*` re
 
 Keep changes small and easy to review. Follow existing file naming:
 
-- Markdown docs use numbered prefixes when they are part of the learning sequence, for example `docs/06-mini-swe-agent-learning-summary.md`.
+- Markdown docs use numbered prefixes when they are part of a learning or development sequence, for example `docs/dev/06-mini-swe-agent-learning-summary.md`.
 - Use clear English file names for shared project docs.
 - Prefer concise explanations over long speculative design rules.
 
