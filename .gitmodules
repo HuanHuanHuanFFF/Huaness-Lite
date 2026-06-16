@@ -16,3 +16,6 @@
 [submodule "references/openhands"]
 	path = references/openhands
 	url = https://github.com/OpenHands/OpenHands
+[submodule "references/hermes-agent"]
+	path = references/hermes-agent
+	url = https://github.com/nousresearch/hermes-agent
