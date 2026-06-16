@@ -15,6 +15,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run tests/core-types.test.ts"
+    "test": "vitest run"
   }
 }
