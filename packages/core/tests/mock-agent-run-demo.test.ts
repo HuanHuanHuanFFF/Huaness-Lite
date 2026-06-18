@@ -51,11 +51,13 @@ describe("mock agent run demo", () => {
 
     expect(events.map((event) => event.type)).toEqual([
       "run.created",
+      "context.built",
       "model.requested",
       "model.responded",
       "tool.requested",
       "policy.decided",
       "tool.completed",
+      "observation.appended",
       "model.requested",
       "model.responded",
       "run.completed"

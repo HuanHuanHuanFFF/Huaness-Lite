@@ -191,11 +191,13 @@ describe("JsonlEventLog", () => {
     expect(result.finalAnswer).toBe("Final answer: hello from fake model");
     expect(runEvents.map((event) => event.type)).toEqual([
       "run.created",
+      "context.built",
       "model.requested",
       "model.responded",
       "tool.requested",
       "policy.decided",
       "tool.completed",
+      "observation.appended",
       "model.requested",
       "model.responded",
       "run.completed"
@@ -203,11 +205,21 @@ describe("JsonlEventLog", () => {
     expect(runEvents.at(0)?.data).toEqual({
       userMessage: "Echo the fake input"
     });
-    expect(runEvents.at(5)?.data).toMatchObject({
+    expect(runEvents.at(6)?.data).toMatchObject({
       result: {
         callId: "call_echo_01",
         toolName: "echo",
         output: "hello from fake model"
+      }
+    });
+    expect(runEvents.at(7)?.data).toMatchObject({
+      toolCallId: "call_echo_01",
+      toolName: "echo",
+      message: {
+        role: "tool",
+        content: "hello from fake model",
+        toolCallId: "call_echo_01",
+        toolName: "echo"
       }
     });
     expect(runEvents.at(-1)?.data).toEqual({

@@ -62,6 +62,11 @@ export class AgentLoop {
       const messages = (await this.contextAssembler.assemble(input)).map(
         (message) => ({ ...message })
       );
+      await this.emit(input, "context.built", {
+        messages: messages.map((message) => ({ ...message })),
+        messageCount: messages.length
+      });
+
       const toolResults: ToolResult[] = [];
       const maxSteps = input.maxSteps ?? this.defaultMaxSteps;
 
@@ -97,10 +102,15 @@ export class AgentLoop {
               signal: input.signal
             });
 
-            this.throwIfAborted(input.signal);
-
             toolResults.push(result);
-            messages.push(this.createToolMessage(result));
+            const toolMessage = this.createToolMessage(result);
+            messages.push(toolMessage);
+            await this.emit(input, "observation.appended", {
+              toolCallId: result.callId,
+              toolName: result.toolName,
+              message: { ...toolMessage }
+            });
+            this.throwIfAborted(input.signal);
           }
           continue;
         }

@@ -12,6 +12,7 @@ import {
   echoTool
 } from "../src/index.js";
 import type {
+  AgentEvent,
   ContextAssembler,
   ModelClient,
   ModelMessage,
@@ -57,6 +58,23 @@ class DenyPolicyEngine implements PolicyEngine {
       kind: "deny",
       reason: "mock policy denies this tool"
     };
+  }
+}
+
+class AbortAfterEventLog extends InMemoryEventLog {
+  constructor(
+    private readonly abortController: AbortController,
+    private readonly eventType: string
+  ) {
+    super();
+  }
+
+  override append(event: AgentEvent): void {
+    super.append(event);
+
+    if (event.type === this.eventType) {
+      this.abortController.abort();
+    }
   }
 }
 
@@ -114,26 +132,50 @@ describe("mock agent run", () => {
     ]);
     expect(eventLog.events.map((event) => event.type)).toEqual([
       "run.created",
+      "context.built",
       "model.requested",
       "model.responded",
       "tool.requested",
       "policy.decided",
       "tool.completed",
+      "observation.appended",
       "model.requested",
       "model.responded",
       "run.completed"
     ]);
     expect(runEvents.map((event) => event.type)).toEqual([
       "run.created",
+      "context.built",
       "model.requested",
       "model.responded",
       "tool.requested",
       "policy.decided",
       "tool.completed",
+      "observation.appended",
       "model.requested",
       "model.responded",
       "run.completed"
     ]);
+    expect(eventLog.events[1]?.data).toEqual({
+      messages: [
+        {
+          role: "user",
+          content: "Echo the fake input"
+        }
+      ],
+      messageCount: 1
+    });
+    expect(eventLog.events[7]?.data).toEqual({
+      toolCallId: "call_echo_01",
+      toolName: "echo",
+      message: {
+        role: "tool",
+        content: "hello from fake model",
+        toolCallId: "call_echo_01",
+        toolName: "echo",
+        isError: undefined
+      }
+    });
   });
 
   test("emits run.cancelled when the model aborts through AbortSignal", async () => {
@@ -161,6 +203,7 @@ describe("mock agent run", () => {
 
     expect(eventLog.events.map((event) => event.type)).toEqual([
       "run.created",
+      "context.built",
       "model.requested",
       "run.cancelled"
     ]);
@@ -218,6 +261,7 @@ describe("mock agent run", () => {
     expect(toolExecuted).toBe(false);
     expect(eventLog.events.map((event) => event.type)).toEqual([
       "run.created",
+      "context.built",
       "model.requested",
       "run.cancelled"
     ]);
@@ -281,6 +325,7 @@ describe("mock agent run", () => {
     expect(toolExecuted).toBe(false);
     expect(eventLog.events.map((event) => event.type)).toEqual([
       "run.created",
+      "context.built",
       "model.requested",
       "model.responded",
       "tool.requested",
@@ -341,12 +386,72 @@ describe("mock agent run", () => {
     expect(modelClient.calls).toHaveLength(1);
     expect(eventLog.events.map((event) => event.type)).toEqual([
       "run.created",
+      "context.built",
       "model.requested",
       "model.responded",
       "tool.requested",
       "policy.decided",
       "run.cancelled"
     ]);
+  });
+
+  test("records observation before cancelling after a terminal tool event", async () => {
+    const abortController = new AbortController();
+    const eventLog = new AbortAfterEventLog(abortController, "tool.completed");
+    const modelClient = new ScriptedModelClient([
+      () => ({
+        message: {
+          role: "assistant",
+          content: "Calling echo"
+        },
+        toolCalls: [
+          {
+            id: "call_abort_after_tool_completed_01",
+            name: "echo",
+            args: { text: "late cancellation" }
+          }
+        ]
+      }),
+      () => {
+        throw new Error("model should not receive a cancelled observation");
+      }
+    ]);
+    const loop = createLoop({
+      eventLog,
+      modelClient
+    });
+
+    await expect(
+      loop.run({
+        runId: "run_abort_after_tool_completed_01",
+        sessionId: "session_abort_after_tool_completed_01",
+        userMessage: "Abort after tool completed",
+        signal: abortController.signal
+      })
+    ).rejects.toThrow("Agent run cancelled");
+
+    expect(modelClient.calls).toHaveLength(1);
+    expect(eventLog.events.map((event) => event.type)).toEqual([
+      "run.created",
+      "context.built",
+      "model.requested",
+      "model.responded",
+      "tool.requested",
+      "policy.decided",
+      "tool.completed",
+      "observation.appended",
+      "run.cancelled"
+    ]);
+    expect(eventLog.events[7]?.data).toMatchObject({
+      toolCallId: "call_abort_after_tool_completed_01",
+      toolName: "echo",
+      message: {
+        role: "tool",
+        content: "late cancellation",
+        toolCallId: "call_abort_after_tool_completed_01",
+        toolName: "echo"
+      }
+    });
   });
 
   test("uses the original tool call id and name when a tool returns mismatched identity", async () => {
@@ -578,9 +683,30 @@ describe("mock agent run", () => {
         isError: true
       }
     ]);
-    expect(eventLog.events.map((event) => event.type)).toContain(
-      "tool.failed"
-    );
+    expect(eventLog.events.map((event) => event.type)).toEqual([
+      "run.created",
+      "context.built",
+      "model.requested",
+      "model.responded",
+      "tool.requested",
+      "policy.decided",
+      "tool.failed",
+      "observation.appended",
+      "model.requested",
+      "model.responded",
+      "run.completed"
+    ]);
+    expect(eventLog.events[7]?.data).toEqual({
+      toolCallId: "call_missing_01",
+      toolName: "missing",
+      message: {
+        role: "tool",
+        content: "Unknown tool: missing",
+        toolCallId: "call_missing_01",
+        toolName: "missing",
+        isError: true
+      }
+    });
     expect(modelClient.calls).toHaveLength(2);
   });
 
@@ -642,9 +768,30 @@ describe("mock agent run", () => {
         isError: true
       }
     ]);
-    expect(eventLog.events.map((event) => event.type)).toContain(
-      "tool.blocked"
-    );
+    expect(eventLog.events.map((event) => event.type)).toEqual([
+      "run.created",
+      "context.built",
+      "model.requested",
+      "model.responded",
+      "tool.requested",
+      "policy.decided",
+      "tool.blocked",
+      "observation.appended",
+      "model.requested",
+      "model.responded",
+      "run.completed"
+    ]);
+    expect(eventLog.events[7]?.data).toEqual({
+      toolCallId: "call_denied_01",
+      toolName: "echo",
+      message: {
+        role: "tool",
+        content: "Tool call blocked by policy: mock policy denies this tool",
+        toolCallId: "call_denied_01",
+        toolName: "echo",
+        isError: true
+      }
+    });
     expect(modelClient.calls).toHaveLength(2);
   });
 
@@ -712,9 +859,30 @@ describe("mock agent run", () => {
         isError: true
       }
     ]);
-    expect(eventLog.events.map((event) => event.type)).toContain(
-      "tool.failed"
-    );
+    expect(eventLog.events.map((event) => event.type)).toEqual([
+      "run.created",
+      "context.built",
+      "model.requested",
+      "model.responded",
+      "tool.requested",
+      "policy.decided",
+      "tool.failed",
+      "observation.appended",
+      "model.requested",
+      "model.responded",
+      "run.completed"
+    ]);
+    expect(eventLog.events[7]?.data).toEqual({
+      toolCallId: "call_explode_01",
+      toolName: "explode",
+      message: {
+        role: "tool",
+        content: "Tool execution failed: boom",
+        toolCallId: "call_explode_01",
+        toolName: "explode",
+        isError: true
+      }
+    });
     expect(modelClient.calls).toHaveLength(2);
   });
 
@@ -751,11 +919,13 @@ describe("mock agent run", () => {
 
     expect(eventLog.events.map((event) => event.type)).toEqual([
       "run.created",
+      "context.built",
       "model.requested",
       "model.responded",
       "tool.requested",
       "policy.decided",
       "tool.completed",
+      "observation.appended",
       "run.max_steps_exceeded",
       "run.failed"
     ]);
@@ -787,6 +957,7 @@ describe("mock agent run", () => {
     expect(modelClient.calls).toHaveLength(0);
     expect(eventLog.events.map((event) => event.type)).toEqual([
       "run.created",
+      "context.built",
       "run.cancelled"
     ]);
   });
