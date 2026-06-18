@@ -19,3 +19,6 @@
 [submodule "references/hermes-agent"]
 	path = references/hermes-agent
 	url = https://github.com/nousresearch/hermes-agent
+[submodule "references/eve"]
+	path = references/eve
+	url = https://github.com/vercel/eve.git
