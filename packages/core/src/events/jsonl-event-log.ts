@@ -6,15 +6,17 @@ import {
   AGENT_EVENT_SOURCES,
   AGENT_EVENT_TYPES,
   CORE_SCHEMA_VERSION
-} from "../types.js";
+} from "./types.js";
 import type {
   AgentEvent,
   AgentEventDraft,
   AgentEventType,
+  AgentEventSource,
   EventLog,
-  EventSource,
+} from "./types.js";
+import type {
   RunId
-} from "../types.js";
+} from "../shared/ids.js";
 
 const DEFAULT_BASE_DIR = ".huaness";
 const RUNS_DIR = "runs";
@@ -226,7 +228,7 @@ function assertAgentEventEnvelope(
     !isAgentEventType(record.type) ||
     typeof record.runId !== "string" ||
     typeof record.sessionId !== "string" ||
-    !isEventSource(record.source) ||
+    !isAgentEventSource(record.source) ||
     !isRecord(record.data)
   ) {
     throw new Error(
@@ -244,7 +246,7 @@ function isAgentEventType(value: unknown): value is AgentEventType {
 }
 
 // 判断 JSON 中的 source 是否属于当前来源集合。
-function isEventSource(value: unknown): value is EventSource {
+function isAgentEventSource(value: unknown): value is AgentEventSource {
   return (
     typeof value === "string" &&
     (AGENT_EVENT_SOURCES as readonly string[]).includes(value)

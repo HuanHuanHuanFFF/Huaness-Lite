@@ -5,15 +5,23 @@ import type {
   AgentEventDataByType,
   AgentEventDraft,
   AgentEventType,
-  EventWriter,
-  PolicyEngine,
+  EventWriter
+} from "../events/types.js";
+import type { PolicyEngine } from "../policy/types.js";
+import type {
   RunId,
-  SessionId,
+  SessionId
+} from "../shared/ids.js";
+import type {
   Tool,
   ToolCall,
-  ToolGatewayResult,
   ToolResult
-} from "../types.js";
+} from "./types.js";
+
+export type ToolGatewayResult = {
+  result: ToolResult;
+  terminalEvent: AgentEvent;
+};
 
 export class ToolGateway {
   private readonly eventWriter: EventWriter;

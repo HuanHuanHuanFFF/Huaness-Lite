@@ -1,6 +1,6 @@
 // Fake 模型客户端，用固定两步响应模拟 LLM tool call 流程。
 
-import type { ModelClient, ModelResponse } from "../types.js";
+import type { ModelClient, ModelResponse } from "./types.js";
 
 // 第一次返回 echo tool call，收到 tool 消息后返回最终答案。
 export class FakeModelClient implements ModelClient {

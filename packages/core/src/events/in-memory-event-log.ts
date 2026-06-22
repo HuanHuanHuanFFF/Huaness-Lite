@@ -3,8 +3,10 @@ import type {
   AgentEvent,
   AgentEventDraft,
   EventLog,
+} from "./types.js";
+import type {
   RunId
-} from "../types.js";
+} from "../shared/ids.js";
 
 // 内存事件日志，用于 mock run 阶段验证事件写入和读取顺序。
 export class InMemoryEventLog implements EventLog {

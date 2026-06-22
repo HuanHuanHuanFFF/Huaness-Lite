@@ -6,15 +6,16 @@ import type {
   AgentEventDataByType,
   AgentEventDraft,
   AgentEventType,
-  AgentRunInput,
-  AgentRunResult,
-  ContextAssembler,
-  EventWriter,
+  EventWriter
+} from "../events/types.js";
+import type { ContextAssembler } from "../context/types.js";
+import type {
   ModelClient,
-  ModelMessage,
-  ToolResult
-} from "../types.js";
+  ModelMessage
+} from "../model/types.js";
+import type { ToolResult } from "../tools/types.js";
 import type { ToolGateway } from "../tools/tool-gateway.js";
+import type { AgentRunInput, AgentRunResult } from "./types.js";
 
 const DEFAULT_MAX_STEPS = 8;
 

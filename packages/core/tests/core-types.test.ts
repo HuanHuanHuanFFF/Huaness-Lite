@@ -7,9 +7,9 @@ import type {
   AgentEvent,
   AgentEventDraft,
   AgentEventType,
+  AgentEventSource,
   EventLog,
   EventReader,
-  EventSource,
   EventWriter,
   ModelClient,
   PolicyDecision,
@@ -25,7 +25,7 @@ describe("core public types", () => {
     const runId: RunId = "run_01";
     const sessionId: SessionId = "session_01";
     const eventType: AgentEventType = "run.created";
-    const eventSource: EventSource = "agent_loop";
+    const eventSource: AgentEventSource = "agent_loop";
 
     const toolCall: ToolCall = {
       id: "call_01",

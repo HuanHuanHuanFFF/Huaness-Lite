@@ -1,6 +1,6 @@
 // echo fake tool，用于 mock run 阶段返回可断言的工具结果。
 
-import type { Tool } from "../types.js";
+import type { Tool } from "./types.js";
 
 // 把 tool call 参数中的 text 原样返回。
 export const echoTool: Tool = {

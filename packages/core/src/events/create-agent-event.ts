@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import { CORE_SCHEMA_VERSION } from "../types.js";
-import type { AgentEvent, AgentEventDraft } from "../types.js";
+import { CORE_SCHEMA_VERSION } from "./types.js";
+import type { AgentEvent, AgentEventDraft } from "./types.js";
 
 // 根据 EventLog 分配的 seq，把 draft 补齐成完整 AgentEvent。
 export function completeAgentEvent(

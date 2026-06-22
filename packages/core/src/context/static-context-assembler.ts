@@ -1,9 +1,7 @@
 // 默认上下文组装器，用静态 system/context 消息加当前用户输入生成模型消息。
-import type {
-  AgentRunInput,
-  ContextAssembler,
-  ModelMessage
-} from "../types.js";
+import type { AgentRunInput } from "../loop/types.js";
+import type { ModelMessage } from "../model/types.js";
+import type { ContextAssembler } from "./types.js";
 
 // 供测试和 P0 默认路径使用的最小 ContextAssembler 实现。
 export class StaticContextAssembler implements ContextAssembler {
