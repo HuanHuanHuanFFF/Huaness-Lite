@@ -14,6 +14,7 @@
   "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "clean": "rimraf --glob dist \"*.tsbuildinfo\" \"*.tsbuildinfo.*\"",
     "demo:mock-run": "tsc -p tsconfig.build.json && node dist/demos/mock-agent-run.js",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
