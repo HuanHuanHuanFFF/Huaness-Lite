@@ -33,3 +33,28 @@ codex说当前还处于beta版本,接入风险比较大,建议浅拷贝到参考
 3. 记忆相关...
 ### 其他依赖接入
 当前应该尽快接入Vercel AI SDK等后续所需的依赖,避免后期接入后重构
+## 6.23
+几十行TS review了一晚上,全在补课JS基础
+今天拆了json-event-log,然后做了下之前的全量review,补了一天基础,还没review完
+### Vercel AI SDK调研结果
+```
+P0 必用：
+1. Model Adapter
+   用 Vercel AI SDK 统一接 OpenAI / Anthropic / Gemini / OpenAI-compatible / AI Gateway。
+
+2. Streaming Adapter
+   用 streamText/fullStream/onStepFinish 捕获模型流式事件
+
+P0 预留：
+3. Tool Protocol Adapter
+   后续开发tool模块的时候再考虑
+
+P1+ 再看：
+4. Structured output
+5. MCP
+6. AI SDK UI
+7. Memory / embedding / rerank
+8. Telemetry / middleware
+```
+### 异步工具调用
+其实我又想了一下,tool call后要即时返回也不是不行,我返回一个任务ID,告诉LLM任务在跑,并且跑完后会通知LLM,同时LLM可以那这个ID,看这个任务的情况,这样就能保证不阻塞群聊会话
