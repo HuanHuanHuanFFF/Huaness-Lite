@@ -13,6 +13,7 @@ export * from "./shared/ids.js";
 export * from "./model/types.js";
 export * from "./tools/types.js";
 export * from "./policy/types.js";
+export * from "./events/event-log.js";
 export * from "./events/types.js";
 export * from "./context/types.js";
 export * from "./loop/types.js";

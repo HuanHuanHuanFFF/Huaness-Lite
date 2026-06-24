@@ -2,8 +2,8 @@ import {completeAgentEvent} from "./create-agent-event.js";
 import type {
     AgentEvent,
     AgentEventDraft,
-    EventLog,
 } from "./types.js";
+import type {EventLog} from "./event-log.js";
 import type {
     RunId
 } from "../shared/ids.js";

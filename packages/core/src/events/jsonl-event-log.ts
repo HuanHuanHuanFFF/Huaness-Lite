@@ -9,8 +9,8 @@ import {SimpleLruMap} from "../shared/simple-lru-map.js";
 import type {
     AgentEvent,
     AgentEventDraft,
-    EventLog,
 } from "./types.js";
+import type {EventLog} from "./event-log.js";
 import type {RunId} from "../shared/ids.js";
 
 const DEFAULT_BASE_DIR = ".huaness";
