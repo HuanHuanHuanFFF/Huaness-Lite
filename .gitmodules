@@ -25,3 +25,6 @@
 [submodule "references/maibot"]
 	path = references/maibot
 	url = https://github.com/Mai-with-u/MaiBot.git
+[submodule "references/deepagents"]
+	path = references/deepagents
+	url = https://github.com/langchain-ai/deepagents.git
