@@ -63,3 +63,34 @@ P1+ 再看：
 想到有个maibot给我留下过很深的印象,群聊场景感觉很像真人,决定拉下来给agent分析一下,是怎么做的
 听说之前LangChain的deep agent改了harness工程让5.2codex从20名开外冲进了top5,也有必要学习一下,准备丢给agent分析
 调查没跑完额度用完了
+## 6.25
+分析完了Maibot,下面记录了一些针对群聊场景的核心设计
+开发基础的replay模块,可初步检验当前的event log
+- [ ] 将部分硬编码改为可配置项
+- [ ] 接入Vercel AI SDK
+- [ ] 接入log模块
+### MaiBot分析结果
+#### agent回复链
+MaiBot在接收群聊消息的时候会先写入缓存,达到一定阈值后刷出到历史记录,同时触发接下来的agent链
+```
+Timing Gate
+  = 人格 + 群聊注意事项 + 最近聊天 + 当前时间
+  - 工具噪音
+  - 行为参考
+  -> 只判断该不该接话
+
+Planner
+  = 人格 + 群聊注意事项 + 最近聊天/工具结果/中期摘要 + 记忆参考 + 人物画像 + 当前时间 + 工具列表
+  -> 判断该做什么
+
+Replyer
+  = 人格 + 回复风格 + 真实聊天上下文 + 目标消息 + Planner 最新推理 + 输出格式约束
+  - 记忆参考
+  - 工具结果
+  - 中期摘要
+  -> 判断具体怎么说
+```
+#### 长任务阻塞当前会话
+没看见有我想的那种异步工具调用,长任务会阻塞群聊会话
+#### 新消息中断当前推理
+- 群聊上下文流动很快，旧推理很容易过时。MaiBot 允许 Planner 被新消息打断，重新等静默、合并新消息、直接重跑 Planner，见 [reasoning_engine.py (line 1151)](/D:/CodingProject/Huaness Lite/references/maibot/src/maisaka/reasoning_engine.py:1151)。
