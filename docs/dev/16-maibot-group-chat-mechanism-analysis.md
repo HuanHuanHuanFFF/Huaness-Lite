@@ -241,6 +241,30 @@ Timing Gate 返回 `continue` 后，才进入主 Planner。Planner 使用 `refer
 
 这点很关键：MaiBot 把“是否应该接话”和“接话时怎么做”拆开了。通用 Agent 很容易把这两件事混在一次 LLM 调用里，结果在群聊里表现为过度响应、抢话、无上下文感。
 
+### 3.4 更准确地说：不是 3 个常驻 Agent，而是 3 段不同职责的模型调用
+
+用户视角上可以把 MaiBot 理解成 Timing Gate、Planner、Replyer 三层；但从 runtime 结构看，它不是 3 个彼此独立、各自维护长期状态的常驻 agent。
+
+- Timing Gate
+  - 由 `references/maibot/src/maisaka/reasoning_engine.py:567-650` 的 `_run_timing_gate()` 驱动。
+  - 本质是工具受限的小型子代理，只能在 `continue / wait / no_action` 里选。
+- Planner
+  - 由 `references/maibot/src/maisaka/reasoning_engine.py:884-1178` 的 `run_loop()` 主循环驱动。
+  - 它负责决定要不要 `reply`、`wait`、`no_action`，或者调用其他工具。
+- Replyer
+  - 不是每轮都运行。
+  - 只有 Planner 真的选中了 `reply` 工具后，`references/maibot/src/maisaka/builtin_tool/reply.py:141-154` 才会复制当前 `runtime._chat_history`，再调用 `replyer.generate_reply_with_context(...)` 生成最终可见文本。
+
+更准确的理解应该是：
+
+```txt
+同一个 session runtime
+  -> 同一份共享历史
+  -> 三种不同职责的模型调用
+```
+
+这就是为什么它看起来像“三个 agent”，但又不会出现三套会话状态各自漂移的问题。
+
 ## 4. 上下文构建方式
 
 MaiBot 的上下文不是单纯“最近 N 条聊天记录”。它由系统 prompt、短期历史、中期摘要、工具结果、行为参考、记忆参考、人物画像、当前时间和当前聊天注意事项组成。
@@ -397,6 +421,42 @@ Replyer 的上下文最净、最贴近最终发言
 
 这能减少“内部工具痕迹、记忆提示、策略提示”泄露到最终群聊发言里。
 
+### 4.6 不是三个子流程各压一份上下文
+
+这里最容易误解。MaiBot 的上下文压缩不是：
+
+```txt
+Timing Gate 压一份
+Planner 压一份
+Replyer 再压一份
+```
+
+真实实现更接近：
+
+```txt
+共享 _chat_history
+  -> 每轮结束后统一裁剪一次
+  -> 被裁掉的部分可生成 mid_term_memory
+  -> 下一轮 Timing Gate / Planner / Replyer 再各自读取不同视图
+```
+
+源码证据：
+
+- 统一裁剪入口在 `references/maibot/src/maisaka/reasoning_engine.py:1565-1660`。
+  - `_end_cycle()` 会调用 `_post_process_chat_history_after_cycle()`。
+  - `_post_process_chat_history_after_cycle()` 直接修改共享的 `self._runtime._chat_history`。
+- Replyer 拿到的是共享历史的一个快照副本，而不是它自己维护的独立历史。
+  - `references/maibot/src/maisaka/builtin_tool/reply.py:141-148`
+  - `replyer_chat_history = list(tool_ctx.runtime._chat_history)`
+- Replyer 自己只做过滤，不会再把另一份 summary 写回主历史。
+  - 过滤逻辑在 `references/maibot/src/chat/replyer/maisaka_generator_base.py:760-770`
+  - 它会过滤 `ReferenceMessage`、`ToolResultMessage`、tool media 和 `mid_term_memory`
+
+所以不会出现“3 个 agent 压出了 3 份不同 summary，然后互相打架”的情况。真正存在的差异是：
+
+- 它们读的是同一份历史的不同视图。
+- 这些视图是刻意做出来的职责隔离，而不是状态分裂。
+
 ## 5. 记忆系统
 
 MaiBot 的记忆是多层结构，不是一个简单 vector search。
@@ -509,7 +569,8 @@ MaiBot 的记忆是多层结构，不是一个简单 vector search。
 
 - 内置工具 provider。
 - 插件工具 provider。
-- MCP 工具 provider。
+
+MCP 工具不是在这里直接注册，而是在 MCPManager 初始化成功后，再通过 `references/maibot/src/maisaka/runtime.py:1898-1915` 单独 `register_provider(MCPToolProvider(...))`。
 
 ### 7.2 工具不是一次全部暴露给 Planner
 
@@ -561,6 +622,36 @@ Planner
   明确写进去，见 `references/maibot/src/chat/replyer/maisaka_generator_base.py:155-195`。
 
 这能显著降低群聊里“回了，但回错人”的概率。
+
+### 7.6 Replyer 接的是共享历史副本，不是独立会话
+
+`reply` 工具并不是“Planner 直接把一句文本吐给平台”。中间还有一层很关键的衔接：
+
+```txt
+Planner 选择 reply(msg_id, ...)
+  -> reply builtin tool
+  -> 复制当前 runtime._chat_history
+  -> Replyer 过滤历史并生成最终文本
+  -> send
+```
+
+关键代码：
+
+- `references/maibot/src/maisaka/builtin_tool/reply.py:141-148`
+  - `replyer_chat_history = list(tool_ctx.runtime._chat_history)`
+  - `replyer.generate_reply_with_context(...)`
+- `references/maibot/src/chat/replyer/maisaka_generator_base.py:967-977`
+  - Replyer 先从这份副本里筛出自己保留的历史
+- `references/maibot/src/chat/replyer/maisaka_generator_base.py:1048-1056`
+  - 再基于过滤后的历史、目标消息、`reply_reason`、`reply_tool_args` 组装最终请求
+
+因此：
+
+- Planner 负责“决定回谁、为什么回、要注意什么”。
+- Replyer 负责“把这件事说得像群里自然说话”。
+- 但它们仍然属于同一个 session runtime，而不是两个独立对话线程。
+
+还要再强调一层：Replyer 这里没有再走一遍通用 `ToolRegistry.invoke()`。`reply` builtin tool 在定位目标消息后，直接 `await replyer.generate_reply_with_context(...)`，见 `references/maibot/src/maisaka/builtin_tool/reply.py:131-154`。Replyer 内部也会先过滤 `ToolResultMessage`、`ReferenceMessage`、tool result media 和 `mid_term_memory`，见 `references/maibot/src/chat/replyer/maisaka_generator_base.py:760-770`。所以 Replyer 不是“第二个通用工具 Agent”；它最多通过 `sub_agent_runner` 触发表达方式选择这一类受控子流程，而不是继续执行任意用户工具。
 
 ## 8. 异步工具和长任务是否阻塞群聊
 
@@ -616,6 +707,38 @@ MaiBot 也确实有很多后台化能力：
 
 这说明 MaiBot 不只是“消息能继续进 buffer”，还支持在当前语境明显变化时，尽快放弃旧推理、重做主决策。
 
+### 8.5 同一个 session 不会并发跑两套 Planner
+
+这也是群聊 runtime 很关键的一点。`MaisakaHeartFlowChatting` 初始化时同时持有：
+
+- 一条 `_internal_turn_queue`
+- 一个 `_internal_loop_task`
+- 一份 `message_cache`
+
+对应初始化在 `references/maibot/src/maisaka/runtime.py:95-113`。真正的内部循环由 `_ensure_background_tasks_running()` 拉起，如果 loop 崩了才会重启，见 `references/maibot/src/maisaka/runtime.py:1233-1246`。而普通消息触发只是往 `_internal_turn_queue.put_nowait("message")` 里塞一个 turn 事件，见 `references/maibot/src/maisaka/runtime.py:1572-1608`。
+
+因此同一个群会话不是：
+
+```txt
+消息 A -> 开一套 Planner
+消息 B -> 再并发开一套 Planner
+```
+
+而更接近：
+
+```txt
+消息 A/B/C
+  -> 先进 buffer 和 turn queue
+  -> 同一条 internal loop 串行处理
+  -> 必要时中断当前 Planner
+  -> 合并新消息后重试
+```
+
+这解释了两个常见疑问：
+
+- 为什么普通工具会阻塞“当前会话当前轮”，但不会把整个平台拖死。
+- 为什么新消息来了以后，MaiBot 更偏向“中断并重做”，而不是“多开一条并发推理线程”。
+
 ## 9. 其他对群聊重要的机制
 
 除了 `buffer + Timing Gate + Planner + Replyer` 这条主干，MaiBot 还有一些对群聊非常关键、但初看不一定会注意到的机制。
@@ -669,7 +792,7 @@ MaiBot 的群聊强点可以归纳为 12 个机制：
 6. **记忆/画像/行为模式按需注入**：长期资产不会每条消息都塞入上下文，而是有窗口、缓存、节流和范围控制。
 7. **重活异步化**：入口、会话 runtime、wait、学习、监控分离，减少群聊高频场景的阻塞。
  8. **回复对象定位明确**：`reply` 工具要求 `msg_id`，Replyer 还会在 prompt 里单独强调当前要回复哪条消息。
- 9. **新消息可打断旧推理**：当前语境明显变化时，Planner 可以被中断并重做决策。
+ 9. **新消息可打断旧推理，但仍保持单 session 串行 loop**：当前语境明显变化时，Planner 可以被中断并重做决策，而不是并发开第二套 planner。
  10. **命令流和聊天流分开**：slash command、插件命令不会天然污染自然聊天主链。
  11. **表达方式单独选择**：不是只生成一句“对的回答”，还要尽量说得像这个群。
  12. **回复效果可回看**：后续可以把“这次接话值不值”变成优化依据。
@@ -687,6 +810,7 @@ P0 可以借鉴这些最小机制：
 | 批量触发 | 频率阈值 + idle compensation | 先做 `minMessages`、`maxDelayMs`、`quietMs` |
 | 强触发 | @/昵称/回复触发 forced continue | adapter 只打 trigger 标记，不直接控制 core |
 | 是否回复 | Timing Gate: continue/wait/no_action | 单独做 `ResponseGate`，不要塞进主 planner |
+| 会话内调度 | 单 session 一条 internal loop，可中断重试 | P0 每个 session 串行执行 turn，避免并发 planner / 并发改同一会话状态 |
 | 防抢话 | group-only no_action backoff | P0 支持 `noActionBackoffMs` |
 | 上下文 | 短期历史 + pinned summary + memory/profile refs | 先做短期窗口 + injected references |
 | 工具 | visible/deferred tools | P0 先做 visible tools，deferred 放 P1 |
