@@ -112,6 +112,22 @@ loop 里 if/else 写一堆特殊逻辑
 子线程负责 context isolation
 ```
 
+再往下一层看，DeepAgents 的多 agent 协作模型其实很克制，不是“很多 agent 平等聊天”，而是标准的 hub-and-spoke：
+
+- 是否派出子 agent，不是框架里有个固定 planner 在硬判；而是主 agent 自己决定要不要调用 `task` 这个工具。`TASK_TOOL_DESCRIPTION` 和 `TASK_SYSTEM_PROMPT` 负责告诉模型“什么时候该派、什么时候不该派”。
+- 子 agent 不会继承父 agent 的完整对话。`_EXCLUDED_STATE_KEYS` 明确排除了 `messages`、`todos`、`structured_response` 等字段；真正启动时，子 agent 的 `messages` 会被重置为一条新的 `HumanMessage(content=description)`。
+- 子 agent 完成后，父 agent 拿到的不是整段内部轨迹，而是一个压缩后的 `ToolMessage` 结果；如果子 agent 产出了 `structured_response`，就把它序列化后作为 `ToolMessage.content`。
+- 兄弟 agent 之间没有直接通信通道。依赖只能走“子 A -> 父 agent -> 子 B”这条回路。
+- 真正能共享的，主要是同一个 `FilesystemMiddleware` backend。主 agent 和子 agent 都挂在同一个工作区 backend 上，所以文件系统更像间接共享黑板，而不是共享内存。
+
+这使它的协作模型非常明确：
+
+```txt
+主 agent = manager / orchestrator
+子 agent = 一次性 worker
+文件系统 = 间接共享介质
+```
+
 ### 1.5 summarization 不是截断，而是 recoverable compaction
 
 `libs/deepagents/deepagents/middleware/summarization.py` 是它最强的 runtime 组件之一。
@@ -132,6 +148,44 @@ loop 里 if/else 写一堆特殊逻辑
 ```
 
 而不是一次性的 prompt 截断。
+
+如果把它讲得更具体一点，DeepAgents 在这里真正做的是把“上下文”拆成三层，而不是默认等于历史消息：
+
+```txt
+工作集（working set）
++ 外部工件（external artifacts）
++ 必要摘要（required summary）
+```
+
+对应机制是：
+
+- `工作集`：每次真正送给模型的，不是全部历史，而是 `effective_messages` 经过裁剪后形成的当前工作集。触发压缩时，会把消息切成 `messages_to_summarize` 和 `preserved_messages`，最后只把“摘要消息 + 最近保留消息”送进本轮模型调用。
+- `外部工件`：被压掉的旧历史不会直接丢弃，而是先写到 `/conversation_history/{thread_id}.md`。如果历史里有内联媒体，媒体会单独落到 `conversation_history/media/`，摘要里只保留路径引用。
+- `必要摘要`：旧历史会被总结成一条新的 summary message，同时把历史文件路径带进去。模型默认看摘要继续推理；如果需要细节，可以再通过 `read_file` 回读外部工件。
+
+这意味着 DeepAgents 里的“上下文”不再是：
+
+```txt
+messages[]
+```
+
+而更接近：
+
+```txt
+system prompt
++ 当前最近消息
++ 必要摘要
++ 外部文件引用
++ todo / runtime state
++ tool schema
+```
+
+默认阈值也不是拍脑袋定的。`compute_summarization_defaults(...)` 会优先使用模型 profile：
+
+- 如果模型暴露 `max_input_tokens`，默认在 `85%` 上下文占用时触发压缩，保留最近约 `10%` 作为新工作集。
+- 如果拿不到 profile，就退回更保守的固定阈值：`trigger=("tokens", 170000)`、`keep=("messages", 6)`。
+
+还有一个经常被忽略、但很值钱的点：DeepAgents 的 summarization middleware 不是直接改写 `state["messages"]`，而是用私有 `_summarization_event` 记录这次压缩发生了什么。这样原始消息轨迹仍然保留，更利于 replay、eval、调试和后续恢复。
 
 ### 1.6 filesystem 不是 file util，而是 coding harness 地基
 
@@ -199,6 +253,15 @@ graph assembler
 ```
 
 这使它天然更适合做 agent benchmark 和后续演进。
+
+而且它最能拉开差距的，往往不是“会不会派子 agent”这么单一的 feature，而是这套 runtime 栈让上下文真正变成了受控资源：
+
+```txt
+上下文 != 全量历史消息
+上下文 = 运行时管理过的工作集 + 外部工件 + 必要摘要
+```
+
+很多长任务失败，不是模型完全不会，而是消息堆得太脏、太厚、太稀释。DeepAgents 把这件事从 prompt 技巧提升成了 runtime 机制。
 
 ### 2.2 它把“模型差异”抬到了 harness 层
 
