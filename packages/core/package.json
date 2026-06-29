@@ -18,5 +18,8 @@
     "demo:mock-run": "tsc -p tsconfig.build.json && node dist/demos/mock-agent-run.js",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "pino": "^10.3.1"
   }
 }
