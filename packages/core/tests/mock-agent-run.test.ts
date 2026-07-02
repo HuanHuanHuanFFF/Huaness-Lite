@@ -6,9 +6,11 @@ import {
   AgentLoop,
   AllowPolicyEngine,
   FakeModelClient,
+  getDefaultRuntimeConfig,
   InMemoryEventLog,
   StaticContextAssembler,
   ToolGateway,
+  resolveRuntimeConfig,
   echoTool
 } from "../src/index.js";
 import type {
@@ -20,6 +22,7 @@ import type {
   ModelResponse,
   PolicyDecision,
   PolicyEngine,
+  RuntimeConfigInput,
   Tool,
   ToolCall
 } from "../src/index.js";
@@ -87,6 +90,7 @@ function createLoop(input: {
   policyEngine?: PolicyEngine;
   tools?: Tool[];
   contextAssembler?: ContextAssembler;
+  runtimeConfig?: RuntimeConfigInput;
 }): AgentLoop {
   const toolGateway = new ToolGateway({
     eventWriter: input.eventLog,
@@ -98,7 +102,8 @@ function createLoop(input: {
     eventWriter: input.eventLog,
     modelClient: input.modelClient,
     toolGateway,
-    contextAssembler: input.contextAssembler
+    contextAssembler: input.contextAssembler,
+    runtimeConfig: input.runtimeConfig
   });
 }
 
@@ -987,6 +992,45 @@ describe("mock agent run", () => {
       "run.max_steps_exceeded",
       "run.failed"
     ]);
+  });
+
+  test("uses runtimeConfig.agent.defaultMaxSteps when run input omits maxSteps", async () => {
+    const defaults = getDefaultRuntimeConfig();
+    const eventLog = new InMemoryEventLog();
+    const modelClient = new ScriptedModelClient([
+      () => ({
+        message: {
+          role: "assistant",
+          content: "Calling echo forever"
+        },
+        toolCalls: [
+          {
+            id: "call_default_max_steps_01",
+            name: "echo",
+            args: { text: "again" }
+          }
+        ]
+      })
+    ]);
+    const loop = createLoop({
+      eventLog,
+      modelClient,
+      runtimeConfig: resolveRuntimeConfig({
+        agent: {
+          defaultMaxSteps: 1
+        }
+      })
+    });
+
+    await expect(
+      loop.run({
+        runId: "run_default_max_steps_01",
+        sessionId: "session_default_max_steps_01",
+        userMessage: "Loop once via runtime config"
+      })
+    ).rejects.toThrow("AgentLoop exceeded maxSteps: 1");
+
+    expect(defaults.agent.defaultMaxSteps).toBeGreaterThan(1);
   });
 
   test("emits run.cancelled when AbortSignal is cancelled before model call", async () => {

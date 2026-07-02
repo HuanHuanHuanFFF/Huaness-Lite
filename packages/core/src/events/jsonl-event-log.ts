@@ -5,6 +5,7 @@ import {completeAgentEvent} from "./create-agent-event.js";
 import {getEventFilePath} from "./event-file-paths.js";
 import {parseEventsJsonl, serializeEvent} from "./event-json-codec.js";
 import {errorMessage, isNodeError} from "../shared/errors.js";
+import {resolveRuntimeConfig} from "../runtime/runtime-config.js";
 import {SimpleLruMap} from "../shared/simple-lru-map.js";
 import type {
     AgentEvent,
@@ -12,9 +13,7 @@ import type {
 } from "./types.js";
 import type {EventLog} from "./event-log.js";
 import type {RunId} from "../shared/ids.js";
-
-const DEFAULT_BASE_DIR = ".huaness";
-const DEFAULT_NEXT_SEQ_CACHE_SIZE = 256;
+import type {RuntimeConfigInput} from "../runtime/runtime-config.js";
 
 // 按 run 把事件追加到单个 JSONL 文件，并按顺序读回。
 export class JsonlEventLog implements EventLog {
@@ -26,10 +25,13 @@ export class JsonlEventLog implements EventLog {
     constructor(input: {
         baseDir?: string;
         nextSeqCacheSize?: number;
+        runtimeConfig?: RuntimeConfigInput;
     } = {}) {
-        this.baseDir = path.resolve(input.baseDir ?? DEFAULT_BASE_DIR);
+        const eventLogConfig = resolveRuntimeConfig(input.runtimeConfig).eventLog;
+
+        this.baseDir = path.resolve(input.baseDir ?? eventLogConfig.baseDir);
         this.nextSeqByRun = new SimpleLruMap(
-            input.nextSeqCacheSize ?? DEFAULT_NEXT_SEQ_CACHE_SIZE
+            input.nextSeqCacheSize ?? eventLogConfig.nextSeqCacheSize
         );
     }
 

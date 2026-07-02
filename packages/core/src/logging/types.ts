@@ -19,6 +19,14 @@ export type PinoRuntimeLoggerOptions = {
   readonly redact?: RuntimeLogRedact;
 };
 
+export type PinoRuntimeLoggerInput = PinoRuntimeLoggerOptions & {
+  readonly runtimeConfig?: {
+    readonly logging?: {
+      readonly level?: RuntimeLogLevel;
+    };
+  };
+};
+
 // RuntimeLogger 描述 core 内部使用的最小日志能力。
 export interface RuntimeLogger {
   debug(message: string, fields?: RuntimeLogFields): void;

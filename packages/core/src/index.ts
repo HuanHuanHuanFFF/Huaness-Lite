@@ -20,6 +20,7 @@ export * from "./loop/types.js";
 export * from "./logging/types.js";
 export * from "./logging/noop-runtime-logger.js";
 export * from "./logging/pino-runtime-logger.js";
+export * from "./runtime/runtime-config.js";
 export * from "./replay/types.js";
 export * from "./replay/create-run-view.js";
 export * from "./replay/run-view-reader.js";

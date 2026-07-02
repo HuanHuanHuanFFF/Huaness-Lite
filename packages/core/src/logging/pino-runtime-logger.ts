@@ -2,7 +2,9 @@
 import pino from "pino";
 import type { Logger as PinoLogger, LoggerOptions } from "pino";
 
+import {resolveRuntimeConfig} from "../runtime/runtime-config.js";
 import type {
+  PinoRuntimeLoggerInput,
   PinoRuntimeLoggerOptions,
   RuntimeLogFields,
   RuntimeLogger
@@ -46,7 +48,7 @@ class PinoRuntimeLogger implements RuntimeLogger {
 
 // createPinoRuntimeLogger 创建默认输出到 stdout 的 Pino runtime logger。
 export function createPinoRuntimeLogger(
-  options: PinoRuntimeLoggerOptions = {},
+  options: PinoRuntimeLoggerInput = {},
   destination?: NodeJS.WritableStream
 ): RuntimeLogger {
   const pinoOptions = toPinoOptions(options);
@@ -58,12 +60,11 @@ export function createPinoRuntimeLogger(
 }
 
 // 把 core 的公开配置收敛成 Pino 实际使用的配置对象。
-function toPinoOptions(options: PinoRuntimeLoggerOptions): LoggerOptions {
+function toPinoOptions(options: PinoRuntimeLoggerInput): LoggerOptions {
   const pinoOptions: LoggerOptions = {};
+  const loggingConfig = resolveRuntimeConfig(options.runtimeConfig).logging;
 
-  if (options.level !== undefined) {
-    pinoOptions.level = options.level;
-  }
+  pinoOptions.level = options.level ?? loggingConfig.level;
 
   if (options.base !== undefined) {
     pinoOptions.base = options.base;

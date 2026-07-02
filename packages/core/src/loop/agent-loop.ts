@@ -1,6 +1,7 @@
 // 最小 AgentLoop，跑通 fake model 到工具调用再到最终回答的链路。
 
 import {StaticContextAssembler} from "../context/static-context-assembler.js";
+import {resolveRuntimeConfig} from "../runtime/runtime-config.js";
 import type {
     AgentEvent,
     AgentEventDataByType,
@@ -16,8 +17,7 @@ import type {
 import type {ToolResult} from "../tools/types.js";
 import type {ToolGateway} from "../tools/tool-gateway.js";
 import type {AgentRunInput, AgentRunResult} from "./types.js";
-
-const DEFAULT_MAX_STEPS = 8;
+import type {RuntimeConfigInput} from "../runtime/runtime-config.js";
 
 export class MaxStepsExceededError extends Error {
     constructor(maxSteps: number) {
@@ -47,13 +47,17 @@ export class AgentLoop {
         toolGateway: ToolGateway;
         contextAssembler?: ContextAssembler;
         defaultMaxSteps?: number;
+        runtimeConfig?: RuntimeConfigInput;
     }) {
+        const agentConfig = resolveRuntimeConfig(input.runtimeConfig).agent;
+
         this.eventWriter = input.eventWriter;
         this.modelClient = input.modelClient;
         this.toolGateway = input.toolGateway;
         this.contextAssembler =
             input.contextAssembler ?? new StaticContextAssembler();
-        this.defaultMaxSteps = input.defaultMaxSteps ?? DEFAULT_MAX_STEPS;
+        this.defaultMaxSteps =
+            input.defaultMaxSteps ?? agentConfig.defaultMaxSteps;
     }
 
     // 执行一次最小 agent run，直到模型给出最终回答或超过步数。

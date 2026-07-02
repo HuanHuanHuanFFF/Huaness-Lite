@@ -17,8 +17,10 @@ import {
   AllowPolicyEngine,
   CORE_SCHEMA_VERSION,
   FakeModelClient,
+  getDefaultRuntimeConfig,
   JsonlEventLog,
   ToolGateway,
+  resolveRuntimeConfig,
   echoTool
 } from "../src/index.js";
 import type {
@@ -150,6 +152,33 @@ describe("JsonlEventLog", () => {
     const eventLog = new JsonlEventLog({ baseDir });
 
     expect(await eventLog.readRunEvents("missing_run")).toEqual([]);
+  });
+
+  test("uses runtimeConfig.eventLog defaults when constructor fields are omitted", async () => {
+    const defaults = getDefaultRuntimeConfig();
+    const configuredBaseDir = path.join(tempRoot, "runtime-config-events");
+    const runtimeConfig = resolveRuntimeConfig({
+      eventLog: {
+        baseDir: configuredBaseDir,
+        nextSeqCacheSize: 3
+      }
+    });
+    const eventLog = new JsonlEventLog({ runtimeConfig });
+
+    await eventLog.append(
+      createDraft({
+        runId: "run_runtime_config",
+        sessionId: "session_runtime_config",
+        type: "run.created"
+      })
+    );
+
+    const eventFiles = await findEventsFiles(configuredBaseDir);
+
+    expect(eventFiles).toHaveLength(1);
+    expect(runtimeConfig.eventLog.nextSeqCacheSize).not.toBe(
+      defaults.eventLog.nextSeqCacheSize
+    );
   });
 
   test("skips blank lines while reading", async () => {

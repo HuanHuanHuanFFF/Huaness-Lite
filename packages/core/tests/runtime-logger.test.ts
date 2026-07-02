@@ -197,6 +197,29 @@ describe("createPinoRuntimeLogger", () => {
       msg: "no pretty"
     });
   });
+
+  test("uses runtimeConfig.logging.level when logger options omit level", () => {
+    const sink = createMemorySink();
+    const logger = core.createPinoRuntimeLogger(
+      {
+        runtimeConfig: core.resolveRuntimeConfig({
+          logging: {
+            level: "error"
+          }
+        })
+      },
+      sink
+    );
+
+    logger.warn("hidden", { step: 1 });
+    logger.error("visible", { step: 2 });
+
+    expect(sink.lines).toHaveLength(1);
+    expect(JSON.parse(sink.lines[0] ?? "")).toMatchObject({
+      step: 2,
+      msg: "visible"
+    });
+  });
 });
 
 test("RuntimeLogger rejects ambiguous second string arguments at type level", () => {
